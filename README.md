@@ -1,21 +1,23 @@
 # AI Signalwire
 
-AI Signalwire is a daily AI news publishing pipeline. A scheduler starts a run each day, then a sequence of focused agents finds recent articles from leading AI organizations, checks whether each article is genuinely about AI, and prepares source-linked posts for the blog.
+AI Signalwire is a daily AI news publishing pipeline. A scheduler starts a run each day. Plain code steps find and clean up recent articles from leading AI organizations. Two LLM agents then check whether each article is genuinely about AI and write a source-linked post for the blog.
 
-An independent evaluation workflow checks the agents' decisions and drafts before anything can move to publication. LangGraph coordinates the stateful workflow and sequential steps; the agent components use LangChain.
+A separate evaluator checks the agents' decisions and drafts before anything can move to publication. LangGraph coordinates the stateful workflow and sequential steps; the LLM components use LangChain.
+
+The design keeps the number of agents small: only steps that need language understanding are agents. Everything else is deterministic code.
 
 ## High-level workflow
 
 ```mermaid
 flowchart TD
     S[Daily scheduler] --> O[LangGraph orchestrator]
-    O --> D[Source discovery agent]
-    D --> X[Extraction and normalization agent]
-    X --> U[Deduplication agent]
-    U --> R[AI relevance agent]
+    O --> D[Fetch, extract and deduplicate]
+    D --> R[Relevance agent]
     R -->|Unrelated or ambiguous| Q[Reject or review queue]
-    R -->|AI-related| M[Summary and blog formatting agents]
-    M --> E[Independent evaluation workflow]
+    R -->|AI-related| M[Writer agent]
+    M --> V[Automated validation]
+    V -->|Invalid| Q
+    V -->|Valid| E[Independent evaluator]
     E -->|Fail or uncertain| Q
     E -->|Pass| H[Human editorial approval]
     H -->|Approved| P[Blog publisher]
@@ -23,25 +25,31 @@ flowchart TD
     P --> B[Blog site]
 ```
 
-LangGraph manages the run state, agent order, conditional routing, retries, and review handoffs. LangChain supplies reusable agent components such as model calls, prompts, structured output parsing, and tools.
+LangGraph manages the run state, step order, conditional routing, retries, and review handoffs. LangChain supplies reusable components for the LLM agents, such as model calls, prompts, and structured output parsing.
 
-## Daily agent workflow
+## Daily workflow
 
-The scheduler starts one run per day at a configurable time. Each run gets a unique ID and processes configured sources such as official Google, OpenAI, and Anthropic news or research channels. For every new article, the orchestrator sends the work through these agents in order:
+The scheduler starts one run per day at a configurable time. Each run gets a unique ID and processes configured sources such as official Google, OpenAI, and Anthropic news or research channels. For every new article, the orchestrator runs these steps in order.
 
-1. **Source discovery agent** — Checks configured feeds and pages for new articles. It prefers RSS/Atom feeds, sitemaps, or documented APIs, and uses respectful, rate-limited page fetching when needed.
-2. **Content extraction agent** — Retrieves the article text and normalizes the title, publisher, canonical URL, publication date, and body into a common record.
-3. **Deduplication agent** — Checks the canonical URL and content fingerprint against stored items. Previously seen articles are recorded as duplicates and do not continue through the chain.
-4. **AI relevance agent** — Decides whether the article is substantially about artificial intelligence. It assigns a relevance label and score, records the evidence for its decision, and routes unrelated or ambiguous items to a rejected or review state.
-5. **Summary agent** — For relevant articles, writes an original, concise summary grounded in the source, preserving key facts and attribution. It does not reproduce the full article.
-6. **Blog formatting agent** — Converts the approved summary and metadata into the blog's required content format, including headline, slug, excerpt, body, topic tags, source attribution, canonical source URL, and publication date.
-7. **Quality check agent** — Checks required fields, links, dates, formatting, and that the draft does not claim more than the source supports.
+**Code steps (no LLM)**
+
+1. **Fetch and extract**—Checks configured feeds for new articles, preferring RSS/Atom feeds, sitemaps, or documented APIs, with respectful, rate-limited page fetching when needed. Retrieves the article text and normalizes the title, publisher, canonical URL, publication date, and body into a common record.
+2. **Deduplicate**—Checks the canonical URL and content fingerprint against stored items. Previously seen articles are recorded as duplicates and do not continue.
+
+**Agents (LLM)**
+
+3. **Relevance agent**—Decides whether the article is substantially about artificial intelligence. It assigns a relevance label and score, records the evidence for its decision, and routes unrelated or ambiguous items to a rejected or review state.
+4. **Writer agent**—For relevant articles, writes an original, concise summary grounded in the source and returns it directly in the blog's required format: headline, slug, excerpt, body, topic tags, source attribution, canonical source URL, and publication date. It preserves key facts and attribution and does not reproduce the full article.
+
+**Code step (no LLM)**
+
+5. **Automated validation**—Checks required fields, link status, date format, and payload schema. Drafts that fail go to the review queue.
 
 The orchestrator advances an article only after the current stage succeeds. Each step is persisted and retryable so a temporary failure does not require repeating successful stages or create duplicate posts.
 
-## Independent evaluation workflow
+## Independent evaluator
 
-A separate evaluator checks the relevance decision and the resulting blog draft before publication. It reads the original source material and draft, then independently answers:
+The third agent is a separate evaluator that checks the relevance decision and the resulting blog draft before publication. It runs with its own prompt, and ideally a different model, so it doesn't share the other agents' blind spots. It reads the original source material and draft, then independently answers:
 
 - Is the article substantially about AI, rather than merely mentioning AI in passing?
 - Does the evidence cited by the relevance agent support its decision?
@@ -77,11 +85,12 @@ The schema will be adapted to the existing blog frontend or CMS. The original so
 ## Proposed architecture
 
 - **Daily scheduler** starts the workflow and assigns a run ID.
-- **LangGraph orchestrator** runs the agent nodes sequentially, persists workflow state, handles retries, and routes items based on relevance and evaluation results.
-- **LangChain agent components** provide model interactions, prompts, structured outputs, and retrieval or publishing tools where needed.
-- **Source adapters** retrieve content from configured publishers.
-- **Agent workers** extract, deduplicate, classify, summarize, format, and check articles.
-- **Independent evaluator** checks AI relevance and draft fidelity before publication review.
+- **LangGraph orchestrator** runs the workflow nodes sequentially, persists workflow state, handles retries, and routes items based on relevance, validation, and evaluation results.
+- **LangChain components** provide model interactions, prompts, and structured outputs for the three agents.
+- **Source adapters** (code) retrieve, extract, and deduplicate content from configured publishers.
+- **Two workflow agents** classify AI relevance and write the formatted post.
+- **Validation step** (code) checks required fields, links, dates, and schema.
+- **Independent evaluator** (third agent) checks AI relevance and draft fidelity before publication review.
 - **Review queue** holds passing drafts for editorial approval and ambiguous cases for investigation.
 - **Publisher adapter** sends approved posts to the blog frontend or CMS.
 - **Database** stores source items, agent outputs, evaluations, review state, and publication records.
@@ -108,9 +117,10 @@ These are starting points and can be swapped to fit the existing frontend:
 │   └── sources.yaml          # Publisher feeds, polling time, and source settings
 ├── src/
 │   ├── scheduler/             # Daily trigger and run creation
-│   ├── discovery/             # Feed and page adapters
-│   ├── agents/                # Extraction, relevance, summary, formatting, QA
-│   ├── evaluation/            # Independent relevance and draft evaluation
+│   ├── discovery/             # Feed adapters, extraction, and deduplication (code)
+│   ├── agents/                # Relevance and writer agents
+│   ├── validation/            # Field, link, date, and schema checks (code)
+│   ├── evaluation/            # Independent evaluator agent
 │   ├── review/                # Editorial queue and approval actions
 │   ├── publishing/            # Blog/CMS integration
 │   └── storage/               # Persistence and migrations
@@ -124,9 +134,9 @@ Store at least:
 - Source name, source URL, canonical URL, title, and publication date
 - Discovery time, content fingerprint, and extracted article text or permitted excerpt
 - AI relevance label, score, evidence, and decision reason
-- Summary, formatted blog payload, and quality check result
+- Summary, formatted blog payload, and validation result
 - Independent evaluation result, evidence, reason, and evaluator version
-- Workflow run ID, per-agent status, attempt count, and error details
+- Workflow run ID, per-step status, attempt count, and error details
 - Editorial status, approver action, published URL, and publication time
 
 Suggested statuses include `discovered`, `extracted`, `duplicate`, `rejected_non_ai`, `needs_review`, `summarized`, `formatted`, `evaluation_failed`, `approved`, `published`, and `failed`.
@@ -147,9 +157,9 @@ Suggested statuses include `discovered`, `extracted`, `duplicate`, `rejected_non
 
 1. Configure the daily scheduler and source registry; collect new items from one official feed.
 2. Normalize and persist article records, with duplicate detection.
-3. Add the sequential AI relevance and summary agents.
-4. Add the independent evaluator and verify that unrelated articles are blocked or flagged.
-5. Format passing articles for the blog API and add the human review queue.
+3. Add the relevance agent and the writer agent.
+4. Add the automated validation step and the independent evaluator, and verify that unrelated articles are blocked or flagged.
+5. Map the writer's output to the blog API and add the human review queue.
 6. Publish an approved draft to a test blog endpoint; add retries, monitoring, and operational alerts.
 
 ## Project status
