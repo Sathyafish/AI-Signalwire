@@ -6,6 +6,17 @@ A separate evaluator checks the agents' decisions and drafts before anything can
 
 The design keeps the number of agents small: only steps that need language understanding are agents. Everything else is deterministic code.
 
+A working laptop demo runs the whole flow from a Jupyter notebook. See [Run the demo](#run-the-demo).
+
+## Sources
+
+Sources are listed in `config/sources.yaml`, and each can be switched off individually.
+
+- **Frontier labs** (first to announce models, tools, frameworks, and protocols): OpenAI, Google DeepMind, Google AI, Anthropic, Meta AI, Microsoft, AWS ML, NVIDIA, and Mistral. Most are read from RSS/Atom feeds. Anthropic and Meta AI have no official feed, so a small page reader collects links from their news index, respecting `robots.txt` and rate limits.
+- **Framework releases** (catch framework shifts on release day): the GitHub releases feed for MCP, LangChain, LangGraph, LlamaIndex, CrewAI, and the OpenAI Agents SDK. Add more repositories to the config to extend the watchlist.
+
+Each item is tagged `lab_post` or `release`. The writer agent uses a news-summary style for posts and a release-notes style for releases. The relevance agent still checks every item.
+
 ## High-level workflow
 
 ```mermaid
@@ -29,7 +40,7 @@ LangGraph manages the run state, step order, conditional routing, retries, and r
 
 ## Daily workflow
 
-The scheduler starts one run per day at a configurable time. Each run gets a unique ID and processes configured sources such as official Google, OpenAI, and Anthropic news or research channels. For every new article, the orchestrator runs these steps in order.
+The scheduler starts one run per day at a configurable time. Each run gets a unique ID and processes the configured [sources](#sources). For every new article, the orchestrator runs these steps in order.
 
 **Code steps (no LLM)**
 
@@ -95,18 +106,20 @@ The schema will be adapted to the existing blog frontend or CMS. The original so
 - **Publisher adapter** sends approved posts to the blog frontend or CMS.
 - **Database** stores source items, agent outputs, evaluations, review state, and publication records.
 
-## Suggested MVP stack
+## Stack
 
-These are starting points and can be swapped to fit the existing frontend:
+The demo column is what is built today. The production column is the suggested next step and can be swapped to fit the existing frontend.
 
-- **Language:** Python or TypeScript
-- **Agent orchestration:** LangGraph for the workflow graph, state, and conditional routing
-- **Agent framework:** LangChain for model integrations, prompts, tools, and structured outputs
-- **Scheduling:** a daily scheduler or durable workflow trigger that starts the LangGraph run
-- **Storage:** PostgreSQL for article and workflow state
-- **Content retrieval:** RSS/Atom first, then source-specific adapters
-- **Blog integration:** a publisher interface backed by the selected CMS or frontend API
-- **Deployment:** scheduled container or worker service
+| Area | Demo (built) | Production (suggested) |
+|---|---|---|
+| Language | Python 3.13 | Python or TypeScript |
+| Orchestration | LangGraph | LangGraph |
+| Agent framework | LangChain with Azure OpenAI or OpenAI, chosen from `.env` | LangChain |
+| Scheduling | Run the notebook cell | Daily scheduler or durable workflow trigger |
+| Storage | SQLite | PostgreSQL |
+| Content retrieval | RSS/Atom, GitHub release feeds, and a page reader for sites without feeds | Same, with more source adapters |
+| Blog integration | Local blog view in the notebook | Publisher interface for the selected CMS or frontend API |
+| Deployment | Laptop | Scheduled container or worker service |
 
 ## Repository layout
 
@@ -160,7 +173,7 @@ Store at least:
 - Workflow run ID, per-step status, attempt count, and error details
 - Editorial status, approver action, published URL, and publication time
 
-Suggested statuses include `discovered`, `extracted`, `duplicate`, `rejected_non_ai`, `needs_review`, `summarized`, `formatted`, `evaluation_failed`, `approved`, `published`, and `failed`.
+The demo uses these statuses: `discovered`, `rejected_non_ai`, `needs_review`, `formatted`, `pending_review`, `approved`, `published`, and `failed`. The code also reserves `extracted`, `duplicate`, `summarized`, and `evaluation_failed`, which nothing sets yet. Duplicates are skipped before they are stored.
 
 ## Editorial and reliability principles
 
@@ -185,4 +198,11 @@ Suggested statuses include `discovered`, `extracted`, `duplicate`, `rejected_non
 
 ## Project status
 
-**Stage:** Laptop demo implemented (notebook, SQLite, local blog). LangChain and LangGraph are selected for the agent and workflow layers. The source list, scheduler time, frontend/CMS, and deployment target are still to be selected.
+**Stage:** Laptop demo implemented and tested with a fake model and canned articles: all 76 tests pass, and all 15 configured sources return items. It has not yet been run end to end with a real Azure OpenAI or OpenAI key. LangChain and LangGraph are selected for the agent and workflow layers.
+
+**Known limits of the demo:**
+- No daily scheduler. A notebook cell starts each run.
+- Items from sites that block bots, or whose feed gives only a short summary, produce thin drafts or go to review.
+- Some review and status edge cases are deferred, such as rejecting an already published post.
+
+**Still to be selected:** the scheduler time, frontend or CMS, and deployment target.
