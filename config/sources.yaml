@@ -1,0 +1,18 @@
+# type: lab_post | release   adapter: feed | html
+# Run `python scripts/check_sources.py` to verify; disable any that fail.
+sources:
+  - {name: OpenAI, type: lab_post, url: "https://openai.com/news/rss.xml", adapter: feed}
+  - {name: Google DeepMind, type: lab_post, url: "https://deepmind.google/blog/rss.xml", adapter: feed}
+  - {name: Google AI, type: lab_post, url: "https://blog.google/technology/ai/rss/", adapter: feed}
+  - {name: Microsoft, type: lab_post, url: "https://www.microsoft.com/en-us/ai/blog/feed/", adapter: feed}
+  - {name: AWS ML, type: lab_post, url: "https://aws.amazon.com/blogs/machine-learning/feed/", adapter: feed}
+  - {name: NVIDIA, type: lab_post, url: "https://blogs.nvidia.com/feed/", adapter: feed}
+  - {name: Anthropic, type: lab_post, url: "https://www.anthropic.com/news", adapter: html}
+  - {name: Meta AI, type: lab_post, url: "https://ai.meta.com/blog/", adapter: html}
+  - {name: Mistral, type: lab_post, url: "https://mistral.ai/news/rss", adapter: feed}
+  - {name: MCP, type: release, url: "https://github.com/modelcontextprotocol/modelcontextprotocol/releases.atom", adapter: feed}
+  - {name: LangChain, type: release, url: "https://github.com/langchain-ai/langchain/releases.atom", adapter: feed}
+  - {name: LangGraph, type: release, url: "https://github.com/langchain-ai/langgraph/releases.atom", adapter: feed}
+  - {name: LlamaIndex, type: release, url: "https://github.com/run-llama/llama_index/releases.atom", adapter: feed}
+  - {name: CrewAI, type: release, url: "https://github.com/crewAIInc/crewAI/releases.atom", adapter: feed}
+  - {name: OpenAI Agents SDK, type: release, url: "https://github.com/openai/openai-agents-python/releases.atom", adapter: feed}
