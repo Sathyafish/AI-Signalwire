@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel><title>Sample</title>
+<item><title>Post one</title><link>https://example.com/one?utm_source=x</link><pubDate>Mon, 01 Jun 2026 10:00:00 GMT</pubDate><description>First summary about a new AI model.</description></item>
+<item><title>Post two</title><link>https://example.com/two</link><pubDate>Tue, 02 Jun 2026 10:00:00 GMT</pubDate><description>Second summary.</description></item>
+<item><title>Post three</title><link>https://example.com/three</link><pubDate>Wed, 03 Jun 2026 10:00:00 GMT</pubDate><description>Third summary.</description></item>
+</channel></rss>
